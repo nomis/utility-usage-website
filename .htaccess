@@ -1,0 +1,9 @@
+RewriteEngine On
+
+RewriteCond %{REQUEST_URI} ^/[0-9]{4,8}$ [OR]
+RewriteCond %{REQUEST_URI} ^/today$
+RewriteRule (.*) /index.php?data=$1 [L]
+
+RewriteCond %{REQUEST_URI} ^/graph\.pl [OR]
+RewriteCond %{REQUEST_URI} ^/median\.php
+RewriteRule .* - [F]
