@@ -23,13 +23,14 @@ if ($meter == "") {
 header("Content-Type: text/html; charset=UTF-8");
 $title=date("Y");
 $xtitle=$ytitle=$title;
-$atitle=$mtitle=$dtitle="";
+$atitle=$mtitle=$dtitle=$htitle="";
 if ($_GET["data"]=="today") { $_GET["data"]=date("Ymd"); }
-if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
+if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
 	$title=$_GET["data"];
 	$xtitle=$ytitle=$matches[1];
 	if ($matches[2]!="") { $xtitle.="-".$matches[2]; $mtitle=$matches[2]; }
 	if ($matches[3]!="") { $xtitle.="-".$matches[3]; $dtitle=$matches[3]; }
+	if ($matches[4]!="") { $xtitle.=" ".$matches[4]; $htitle=$matches[4]; }
 } else if (strlen($_GET["data"]) > 0) {
 	header("HTTP/1.1 404 No Data");
 	header("Content-Type: text/plain");
@@ -40,7 +41,6 @@ if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
 $id=$meter;
 $uri="";
 $meter=isset($_GET["meter"]) ? ".".$_GET["meter"] : "";
-define("DAY",$dtitle!="");
 
 define("UX",0);
 
@@ -54,6 +54,7 @@ if (isset($data)) { unset($data); }
 
 $usage="Usage";
 $start_day=1;
+$output=Array();
 
 if (strlen($title) == 4) { // year
 	$name="Month";
@@ -122,7 +123,33 @@ if (strlen($title) == 4) { // year
 	for ($i=$start;$i<$finish;$i+=3600) {
 		$hour=date("H",$i);
 		$hour=str_pad($hour,2,"0",STR_PAD_LEFT);
-		$output[]=Array('id'=>$hour,'name'=>$hour.":00–".$hour.":59",'sname'=>$hour,'start'=>$i,'stop'=>$i+3600);
+		$output[]=Array('id'=>$hour,'name'=>$hour.":00–".$hour.":59",'sname'=>$hour,'start'=>$i,'stop'=>$i+3600,'url'=>date("YmdH",$i));
+	}
+} else if (strlen($title) == 10) { // hour
+	$name="Minute";
+
+	$days_max=$monlen[intval(substr($title,4,2))];
+
+	$next_month=($dtitle!=$days_max ? $mtitle : ($mtitle!=12 ? $mtitle+1 : 1));
+	$next_year=($dtitle!=$days_max ? $ytitle : ($mtitle!=12 ? $ytitle : $ytitle + 1));
+
+	$start=mktime($htitle,0,0,$mtitle,$dtitle,$ytitle);
+	if ($htitle == 23) {
+		$finish=mktime(0,0,0,($dtitle!=$days_max ? $mtitle : $next_month),
+			($dtitle!=$days_max ? $dtitle+1 : 1),
+			($dtitle!=$days_max ? $ytitle : $next_year));
+	} else {
+		$finish=mktime($htitle+1,0,0,$mtitle,$dtitle,$ytitle);
+	}
+
+	$comb=1;
+	for ($i=$start;$i<$finish;$i+=$comb*60) {
+		$minute=date("i",$i);
+		$minute=str_pad($minute,2,"0",STR_PAD_LEFT);
+		$minute2=str_pad($minute+$comb,2,"0",STR_PAD_LEFT);
+		if ($comb == 1) { $sname=$minute; }
+		else { $sname=$minute."-".$minute2; }
+		$output[]=Array('id'=>$minute,'name'=>$minute.":00–".$minute2.":59",'sname'=>$sname,'start'=>$i,'stop'=>$i+$comb*60);
 	}
 }
 
@@ -170,19 +197,25 @@ if (!isset($data)) {
 <html lang="en-GB"><head><title><?=$site?>: <?=$xtitle.$atitle?></title><style type="text/css">tr.c0 { color: #000; background-color: #fff; } tr.c1 { color: #000; background-color: #eee; } em { border-top: 1px dotted; border-bottom: 1px dotted; }</style></head><body><center><h1><?
 if (strlen($title) == 4) {
 	echo $xtitle.$atitle;
+} else if ($htitle!="") {
+	echo '<a href="/'.$uri;
+	$y=$ytitle;
+	$m=$mtitle;
+	$d=$dtitle;
+	echo $y.$m.$d;
+	echo $meter;
+	echo '">'.substr($xtitle,0,strlen($xtitle)-3).'</a>'.substr($xtitle,strlen($xtitle)-3).$atitle;
+} else if ($dtitle!="" && $dtitle < $start_day) {
+	echo '<a href="/'.$uri;
+	$y=$ytitle;
+	$m=$mtitle-1;
+	if ($m==0) { $y--; $m=12; }
+	$m=str_pad($m,2,"0",STR_PAD_LEFT);
+	echo $y.$m;
+	echo $meter;
+	echo '">'.substr($xtitle,0,strlen($xtitle)-3).'</a>'.substr($xtitle,strlen($xtitle)-3).$atitle;
 } else {
-	if (DAY && $dtitle < $start_day) {
-		echo '<a href="/'.$uri;
-		$y=$ytitle;
-		$m=$mtitle-1;
-		if ($m==0) { $y--; $m=12; }
-		$m=str_pad($m,2,"0",STR_PAD_LEFT);
-		echo $y.$m;
-		echo $meter;
-		echo '">'.substr($xtitle,0,strlen($xtitle)-3).'</a>'.substr($xtitle,strlen($xtitle)-3).$atitle;
-	} else {
-		echo '<a href="/'.$uri.substr($title,0,strlen($title)-2).$meter.'">'.substr($xtitle,0,strlen($xtitle)-3).'</a>'.substr($xtitle,strlen($xtitle)-3).$atitle;
-	}
+	echo '<a href="/'.$uri.substr($title,0,strlen($title)-2).$meter.'">'.substr($xtitle,0,strlen($xtitle)-3).'</a>'.substr($xtitle,strlen($xtitle)-3).$atitle;
 }
 ?></h1>
 <?
