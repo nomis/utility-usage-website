@@ -37,6 +37,7 @@ if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
 	die();
 }
 
+$id=$meter;
 $uri="";
 $meter=isset($_GET["meter"]) ? ".".$_GET["meter"] : "";
 define("DAY",$dtitle!="");
@@ -126,138 +127,42 @@ if (strlen($title) == 4) { // year
 }
 
 $debug="start: ".microtime(TRUE)."\n";
-if ($dh = opendir($dir)) {
-	while (($file = readdir($dh)) !== false) {
-		if ($file != "." && $file != "..") {
-			$filename=$file;
-			if (isset($_GET["type"]) && strlen($_GET["type"])==1) {
-				if (substr($file,0,1) != $_GET["type"]) { continue; }
-				$file=substr($file,1);
-			}
-			if ($file+86400 <= $start || $file >= $finish) { continue; }
+$db = new PDO("pgsql:dbname=gasmeter", NULL, NULL);
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$user = NULL;
+$pass = NULL;
+//$db->exec("SELECT set_curcfg('default')");
+$db->beginTransaction();
 
-			$fd=file_get_contents($dir.$filename);
-			$z=explode(" ",str_replace("\n","",$fd));
-			foreach ($output as $key => $period) {
-				if ($period['start'] >= $file+86400 || $period['stop'] <= $file) { continue; }
+$stmt = $db->prepare("SELECT EXTRACT(EPOCH FROM MIN(start)) AS min FROM pulses WHERE meter=:meter");
+$stmt->bindParam("meter", $id);
+$stmt->execute();
+$min=$stmt->fetch(PDO::FETCH_OBJ)->min;
+$stmt->closeCursor();
+unset($stmt);
 
-				if (MODE==PLUSNET || MODE==AAISP) {
-						list ($y,$m,$d) = explode(" ",gmdate("Y m d",$file));
-				}
+foreach ($output as $key => $period) {
+	$debug.="load: ".$id."/".$period['start']."..".$period['stop']." to ".$period['id']."\n";
+	if ($period['stop'] <= $min) { continue; }
 
-				if ($period['start'] <= $file && $period['stop'] >= $file+86400) {
-					$all=TRUE;
-				} else {
-					$all=FALSE;
-				}
-
-				if ((MODE==NORMAL || MODE==SI || DAY) && $all) { // load the whole file
-					//$debug.="load: $file (all) to ".$period['id']."\n";
-					$data[$key][RX]+=array_sum(array_slice($z,0,24));
-					$data[$key][TX]+=array_sum(array_slice($z,24,24));
-					for ($i=0;$i<24;$i++) {
-						$rxr=$z[$i]/450;
-						if (!isset($data[$key][RXR_MIN]) || $data[$key][RXR_MIN] > $rxr) { $data[$key][RXR_MIN]=$rxr; }
-						if (!isset($data[$key][RXR_MAX]) || $data[$key][RXR_MAX] < $rxr) { $data[$key][RXR_MAX]=$rxr; }
-						$data[$key][RXR_ALL][]=$rxr;
-					}
-					for ($i=24;$i<24+24;$i++) {
-						$txr=$z[$i]/450;
-						if (!isset($data[$key][TXR_MIN]) || $data[$key][TXR_MIN] > $txr) { $data[$key][TXR_MIN]=$txr; }
-						if (!isset($data[$key][TXR_MAX]) || $data[$key][TXR_MAX] < $txr) { $data[$key][TXR_MAX]=$txr; }
-						$data[$key][TXR_ALL][]=$txr;
-					}
-				} else { // load part of the file
-					if ($all) {
-						//$debug.="load: $file (all) to ".$period['id']."\n";
-						$offset=0;
-						$length=24;
-					} else {
-						if ($period['start'] <= $file) {
-							$offset=0;
-						} else {
-							$offset=($period['start'] - $file)/3600;
-						}
-						if ($period['stop'] >= $file+86400) {
-							$length=24 - $offset;
-						} else {
-							$length=($period['stop'] - $file)/3600 - $offset;
-						}
-						//$debug.="load: $file ($offset+$length) to ".$period['id']."\n";
-					}
-
-					if (MODE==NORMAL || MODE==SI || DAY) {
-						$data[$key][RX]+=array_sum(array_slice($z,$offset,$length));
-						$data[$key][TX]+=array_sum(array_slice($z,24+$offset,$length));
-						for ($i=$offset;$i<$offset+$length;$i++) {
-							$rxr=$z[$i]/450;
-							if (!isset($data[$key][RXR_MIN]) || $data[$key][RXR_MIN] > $rxr) { $data[$key][RXR_MIN]=$rxr; }
-							if (!isset($data[$key][RXR_MAX]) || $data[$key][RXR_MAX] < $rxr) { $data[$key][RXR_MAX]=$rxr; }
-							$data[$key][RXR_ALL][]=$rxr;
-						}
-						for ($i=24+$offset;$i<24+$offset+$length;$i++) {
-							$txr=$z[$i]/450;
-							if (!isset($data[$key][TXR_MIN]) || $data[$key][TXR_MIN] > $txr) { $data[$key][TXR_MIN]=$txr; }
-							if (!isset($data[$key][TXR_MAX]) || $data[$key][TXR_MAX] < $txr) { $data[$key][TXR_MAX]=$txr; }
-							$data[$key][TXR_ALL][]=$txr;
-						}
-					} else if (MODE==PLUSNET) {
-						for ($i=$file+$offset*3600,$j=$offset; $j<$offset+$length; $i+=3600,$j++) {
-							$h=date("G",$i);
-							if (isset($peak[$h])) {
-								$data[$key][RX]+=$z[$j];
-								$data[$key][RX]+=$z[24+$j];
-								$rxr=$z[$j]/450;
-								if (!isset($data[$key][RXR_MIN]) || $data[$key][RXR_MIN] > $rxr) { $data[$key][RXR_MIN]=$rxr; }
-								if (!isset($data[$key][RXR_MAX]) || $data[$key][RXR_MAX] < $rxr) { $data[$key][RXR_MAX]=$rxr; }
-								$data[$key][RXR_ALL][]=$rxr;
-							} else {
-								$data[$key][TX]+=$z[$j];
-								$data[$key][TX]+=$z[24+$j];
-								$txr=$z[24+$j]/450;
-								if (!isset($data[$key][TXR_MIN]) || $data[$key][TXR_MIN] > $txr) { $data[$key][TXR_MIN]=$txr; }
-								if (!isset($data[$key][TXR_MAX]) || $data[$key][TXR_MAX] < $txr) { $data[$key][TXR_MAX]=$txr; }
-								$data[$key][TXR_ALL][]=$txr;
-							}
-						}
-					} else if (MODE==AAISP) {
-						for ($i=$file+$offset*3600,$j=$offset; $j<$offset+$length; $i+=3600,$j++) {
-							$h=date("G",$i);
-							$w=date("w",$i);
-							if (isset($peak[$h]) && $w!=0 && $w!=6) {
-								$data[$key][RX]+=$z[$j];
-								//$data[$key][TX]+=$z[24+$j];
-								$rxr=$z[$j]/450;
-								if (!isset($data[$key][RXR_MIN]) || $data[$key][RXR_MIN] > $rxr) { $data[$key][RXR_MIN]=$rxr; }
-								if (!isset($data[$key][RXR_MAX]) || $data[$key][RXR_MAX] < $rxr) { $data[$key][RXR_MAX]=$rxr; }
-								$data[$key][RXR_ALL][]=$rxr;
-							} else if (!isset($unmetered[$h])) {
-								$data[$key][TX]+=$z[$j];
-								//$data[$key][TX]+=$z[24+$j];
-								$txr=$z[24+$j]/450;
-								if (!isset($data[$key][TXR_MIN]) || $data[$key][TXR_MIN] > $txr) { $data[$key][TXR_MIN]=$txr; }
-								if (!isset($data[$key][TXR_MAX]) || $data[$key][TXR_MAX] < $txr) { $data[$key][TXR_MAX]=$txr; }
-								$data[$key][TXR_ALL][]=$txr;
-							} else {
-								$data[$key][OX]+=$z[$j];
-								//$data[$key][OX]+=$z[24+$j];
-								$oxr=$z[24+$j]/450;
-								if (!isset($data[$key][OXR_MIN]) || $data[$key][OXR_MIN] > $txr) { $data[$key][OXR_MIN]=$txr; }
-								if (!isset($data[$key][OXR_MAX]) || $data[$key][OXR_MAX] < $txr) { $data[$key][OXR_MAX]=$txr; }
-								$data[$key][OXR_ALL][]=$oxr;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) * :conv AS usage");
+	$stmt->bindParam("meter", $id);
+	$stmt->bindParam("start", $period['start']);
+	$stmt->bindParam("stop", $period['stop']);
+	$stmt->bindParam("conv", $conv);
+	$stmt->execute();
+	$data[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
+	$stmt->closeCursor();
+	unset($stmt);
 }
 $debug.="end: ".microtime(TRUE)."\n";
+$db->commit();
+
 if (!isset($data)) {
 	header("HTTP/1.1 404 No Data");
 	header("Content-Type: text/plain");
 	echo "No data for $title\n";
+	echo $debug;
 	die();
 }
 
@@ -292,7 +197,7 @@ $units=Array(
 	$div*$div=>'MW·h', */
 	$div=>'kW·h',
 	1=>'W·h');
-$use=Array(1,'B');
+$use=Array(1,'W·h');
 $max=0;
 foreach ($output as $key => $period) {
 	if ($data[$key][UX] > $max) { $max=$data[$key][UX]; }
@@ -304,11 +209,6 @@ foreach ($units as $key => $unit) {
 }
 
 $exe="./graph.pl";
-if ($other != "") {
-	$exe.=" 1";
-} else {
-	$exe.=" 0";
-}
 $exe.=" ".$name;
 $exe.=" \"".$use[1]."\"";
 foreach ($output as $key => $period) {
@@ -327,7 +227,7 @@ echo '">';
 echo '<table border="1" width="50%">';
 echo '<tr>';
 echo '<th width="10%" bgcolor="#808080">'.$name.'</th>';
-echo '<th width="10%" bgcolor="#ff0000">'.$usage.' ('.$use[1].')</th>';
+echo '<th width="10%" bgcolor="#6666ff">'.$usage.' ('.$use[1].')</th>';
 //echo '<th width="10%" bgcolor="#0000ff">Total ('.$use[1].')</th>';
 echo '</tr>';
 $ux=$cx=Array();
@@ -359,7 +259,7 @@ foreach ($output as $key => $period) {
 	echo '</tr>';
 
 	if ($data[$key][UX] == 0) { continue; } else { $rows++; }
-	$rx[]=$data[$key][UX];
+	$ux[]=$data[$key][UX];
 	$cx[]=$data[$key][UX];
 }
 

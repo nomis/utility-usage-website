@@ -10,15 +10,17 @@ my (@data);
 my $i = 0;
 while (my $x = shift) {
 	my ($l, $u) = split(/,/,$x);
-	$data[0][$i] = $u;
-	}
-#	$values[0][$i] = $u;
+	$data[0][$i] = $l;
+	$data[1][$i] = $u;
+#	$values[0][$i] = undef;
+#	$values[1][$i] = $u;
 	$i++;
 }
 
 my $graph = GD::Graph::bars3d->new(1000, 400);
 $graph->set_text_clr("black");
 $graph->set_legend_font(GD::Text::gdTinyFont);
+$graph->set(dclrs => [ qw(blue) ]);
 $graph->set(
 	x_label => $xlabel,
 	y_label => $ylabel,
@@ -30,4 +32,5 @@ $graph->set(
 #	values_space => 10,
 #	values_format => "%.2f"
 );
-print $graph->plot(\@data)->png;
+my $gd = $graph->plot(\@data) or die $graph->error;
+print $gd->png;
