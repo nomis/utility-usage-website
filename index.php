@@ -1,4 +1,6 @@
 <?
+// TODO: adjust for day of the week when comparing to last year
+
 date_default_timezone_set("Europe/London");
 include("setup.php");
 include("median.php");
@@ -49,8 +51,14 @@ $monlen=Array(0,
 	30,31,30,
 	31,31,30,
 	31,30,31);
+$lmonlen=Array(0,
+	31,(date("L", mktime(0,0,0,1,1,substr($title,0,4)-1)) ? 29 : 28),31,
+	30,31,30,
+	31,31,30,
+	31,30,31);
 
 if (isset($data)) { unset($data); }
+if (isset($ldata)) { unset($ldata); }
 
 $usage="Usage";
 $start_day=1;
@@ -63,19 +71,22 @@ if (strlen($title) == 4) { // year
 	$start=mktime(0,0,0,1,$start_day,$ytitle);
 	$finish=mktime(0,0,0,1,$start_day,$ytitle+1);
 
-	$output=Array(
-		Array('id'=>'01','url'=>$ytitle.'01',name=>'January',sname=>'Jan',start=>mktime(0,0,0,1,$start_day,$ytitle),stop=>mktime(0,0,0,2,$start_day,$ytitle)),
-		Array('id'=>'02','url'=>$ytitle.'02',name=>'February',sname=>'Feb',start=>mktime(0,0,0,2,$start_day,$ytitle),stop=>mktime(0,0,0,3,$start_day,$ytitle)),
-		Array('id'=>'03','url'=>$ytitle.'03',name=>'March',sname=>'Mar',start=>mktime(0,0,0,3,$start_day,$ytitle),stop=>mktime(0,0,0,4,$start_day,$ytitle)),
-		Array('id'=>'04','url'=>$ytitle.'04',name=>'April',sname=>'Apr',start=>mktime(0,0,0,4,$start_day,$ytitle),stop=>mktime(0,0,0,5,$start_day,$ytitle)),
-		Array('id'=>'05','url'=>$ytitle.'05',name=>'May',sname=>'May',start=>mktime(0,0,0,5,$start_day,$ytitle),stop=>mktime(0,0,0,6,$start_day,$ytitle)),
-		Array('id'=>'06','url'=>$ytitle.'06',name=>'June',sname=>'Jun',start=>mktime(0,0,0,6,$start_day,$ytitle),stop=>mktime(0,0,0,7,$start_day,$ytitle)),
-		Array('id'=>'07','url'=>$ytitle.'07',name=>'July',sname=>'Jul',start=>mktime(0,0,0,7,$start_day,$ytitle),stop=>mktime(0,0,0,8,$start_day,$ytitle)),
-		Array('id'=>'08','url'=>$ytitle.'08',name=>'August',sname=>'Aug',start=>mktime(0,0,0,8,$start_day,$ytitle),stop=>mktime(0,0,0,9,$start_day,$ytitle)),
-		Array('id'=>'09','url'=>$ytitle.'09',name=>'September',sname=>'Sep',start=>mktime(0,0,0,9,$start_day,$ytitle),stop=>mktime(0,0,0,10,$start_day,$ytitle)),
-		Array('id'=>'10','url'=>$ytitle.'10',name=>'October',sname=>'Oct',start=>mktime(0,0,0,10,$start_day,$ytitle),stop=>mktime(0,0,0,11,$start_day,$ytitle)),
-		Array('id'=>'11','url'=>$ytitle.'11',name=>'November',sname=>'Nov',start=>mktime(0,0,0,11,$start_day,$ytitle),stop=>mktime(0,0,0,12,$start_day,$ytitle)),
-		Array('id'=>'12','url'=>$ytitle.'12',name=>'December',sname=>'Dec',start=>mktime(0,0,0,12,$start_day,$ytitle),stop=>mktime(0,0,0,1,$start_day,$ytitle+1)));
+	foreach (Array('January','February','March','April','May','June','July','August','September','October','November','December') as $i => $k) {
+		$i1=$i+1;
+		$i2=$i+2;
+		$y0=$ytitle;
+		$y1=$ytitle;
+		if ($i2 == 13) { $i2 = 1; $y1=$y1+1; }
+		$output[]=Array(
+			'id'=>sprintf("%02d",$i+1),
+			'url'=>$ytitle.sprintf("%02d",$i+1),
+			'name'=>$k,'sname'=>substr($k,0,3),
+			'start'=>mktime(0,0,0,$i1,$start_day,$y0),
+			'stop'=>mktime(0,0,0,$i2,$start_day,$y1),
+			'lstart'=>mktime(0,0,0,$i1,$start_day,$y0-1),
+			'lstop'=>mktime(0,0,0,$i2,$start_day,$y1-1)
+		);
+	}
 } else if (strlen($title) == 6) { // month
 	$name="Day";
 
@@ -86,6 +97,7 @@ if (strlen($title) == 4) { // year
 	$finish=mktime(0,0,0,$next_month,$start_day,$next_year);
 
 	$days_max=$monlen[intval(substr($title,4,2))];
+	$ldays_max=$lmonlen[intval(substr($title,4,2)-1)];
 
 	for ($i=1;$i<=$days_max;$i++) { $days[]=$i; }
 	$days=array_merge(
@@ -101,6 +113,12 @@ if (strlen($title) == 4) { // year
 		$output[$i]['stop']=mktime(0,0,0,($i!=$days_max ? $month : $next_month),
 			($i!=$days_max ? $i+1 : 1),
 			($i!=$days_max ? $year : $next_year));
+		if ($i<=$ldays_max) {
+			$output[$i]['lstart']=mktime(0,0,0,$month,$i,$year-1);
+			$output[$i]['lstop']=mktime(0,0,0,($i!=$ldays_max ? $month : $next_month),
+				($i!=$ldays_max ? $i+1 : 1),
+				($i!=$ldays_max ? $year : $next_year)-1);
+		}
 		$output[$i]['url']=date("Ymd",$output[$i]['start']);
 		if ($i==$days_max) {
 			$month=$next_month;
@@ -111,6 +129,7 @@ if (strlen($title) == 4) { // year
 	$name="Hour";
 
 	$days_max=$monlen[intval(substr($title,4,2))];
+	$ldays_max=$lmonlen[intval(substr($title,4,2)-1)];
 
 	$next_month=($dtitle!=$days_max ? $mtitle : ($mtitle!=12 ? $mtitle+1 : 1));
 	$next_year=($dtitle!=$days_max ? $ytitle : ($mtitle!=12 ? $ytitle : $ytitle + 1));
@@ -123,7 +142,23 @@ if (strlen($title) == 4) { // year
 	for ($i=$start;$i<$finish;$i+=3600) {
 		$hour=date("H",$i);
 		$hour=str_pad($hour,2,"0",STR_PAD_LEFT);
-		$output[]=Array('id'=>$hour,'name'=>$hour.":00–".$hour.":59",'sname'=>$hour,'start'=>$i,'stop'=>$i+3600,'url'=>date("YmdH",$i));
+
+		$p=Array('id'=>$hour,'name'=>$hour.":00–".$hour.":59",'sname'=>$hour,'start'=>$i,'stop'=>$i+3600,'url'=>date("YmdH",$i));
+
+		$lstart=mktime(0,0,0,$mtitle,$dtitle,$ytitle-1);
+		$lfinish=mktime(0,0,0,($dtitle!=$ldays_max ? $mtitle : $next_month),
+			($dtitle!=$ldays_max ? $dtitle+1 : 1),
+			($dtitle!=$ldays_max ? $ytitle : $next_year)-1);
+		for ($j=$lstart;$j<$lfinish;$j+=3600) {
+			$lhour=date("H",$j);
+			$lhour=str_pad($lhour,2,"0",STR_PAD_LEFT);
+			if ($lhour==$hour) {
+				$p['lstart']=$j;
+				$p['lstop']=$j+3600;
+			}
+		}
+
+		$output[]=$p;
 	}
 } else if (strlen($title) == 10) { // hour
 	$name="Minute";
@@ -161,10 +196,12 @@ $pass = NULL;
 //$db->exec("SELECT set_curcfg('default')");
 $db->beginTransaction();
 
-$stmt = $db->prepare("SELECT EXTRACT(EPOCH FROM MIN(start)) AS min FROM pulses WHERE meter=:meter");
+$stmt = $db->prepare("SELECT EXTRACT(EPOCH FROM MIN(start)) AS min,EXTRACT(EPOCH FROM MAX(start)) AS max FROM pulses WHERE meter=:meter");
 $stmt->bindParam("meter", $id);
 $stmt->execute();
-$min=$stmt->fetch(PDO::FETCH_OBJ)->min;
+$f=$stmt->fetch(PDO::FETCH_OBJ);
+$min=$f->min;
+$max=$f->max;
 $stmt->closeCursor();
 unset($stmt);
 
@@ -178,9 +215,26 @@ foreach ($output as $key => $period) {
 	$stmt->bindParam("stop", $period['stop']);
 	$stmt->bindParam("conv", $conv);
 	$stmt->execute();
-	$data[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
+	$data[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
 	$stmt->closeCursor();
 	unset($stmt);
+
+	$ldata[$key][UX]=$data[$key][UX];
+	if (isset($period['lstart'])) {
+		$debug.="lload: ".$id."/".$period['lstart']."..".$period['lstop']." to ".$period['id']."\n";
+		if ($period['lstop'] <= $min) { continue; }
+		if ($period['stop'] > $max) { continue; }
+
+		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) * :conv AS usage");
+		$stmt->bindParam("meter", $id);
+		$stmt->bindParam("start", $period['lstart']);
+		$stmt->bindParam("stop", $period['lstop']);
+		$stmt->bindParam("conv", $conv);
+		$stmt->execute();
+		$ldata[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
+		$stmt->closeCursor();
+		unset($stmt);
+	}
 }
 $debug.="end: ".microtime(TRUE)."\n";
 $db->commit();
@@ -246,9 +300,9 @@ $exe.=" ".$name;
 $exe.=" \"".$use[1]."\"";
 foreach ($output as $key => $period) {
 	if (isset($period['sname'])) { $sname=$period['sname']; } else { $sname=$period['id']; }
-	$exe.=" $sname,".$data[$key][UX]/$use[0];
+	$exe.=" $sname,".($data[$key][UX]/$use[0]).",".(($data[$key][UX] - $ldata[$key][UX])/$use[0]);
 }
-echo '<!--'.$exe.'-->';
+echo '<!--'.str_replace(" "," \\\n",$exe).'-->';
 echo '<img src="data:image/png;base64,';
 ob_start();
 system($exe);
