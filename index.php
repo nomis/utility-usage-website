@@ -223,7 +223,7 @@ foreach ($output as $key => $period) {
 	if (isset($period['lstart'])) {
 		$debug.="lload: ".$id."/".$period['lstart']."..".$period['lstop']." to ".$period['id']."\n";
 		if ($period['lstop'] <= $min) { continue; }
-		if ($period['stop'] > $max) { continue; }
+#		if ($period['start'] > $max) { continue; }
 
 		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) * :conv AS usage");
 		$stmt->bindParam("meter", $id);
