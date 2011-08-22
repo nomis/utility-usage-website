@@ -57,6 +57,19 @@ $lmonlen=Array(0,
 	31,31,30,
 	31,30,31);
 
+$neardow=Array();
+for ($i=0;$i<7;$i++) {
+	for ($j=0;$j<7;$j++) {
+		$t1=$i-$j;
+		$t2=$t1 < 0 ? $t1+7 : $t1-7;
+		if (abs($t1) <= abs($t2)) {
+			$neardow[$i.$j]=$t1;
+		} else {
+			$neardow[$i.$j]=$t2;
+		}
+	}
+}
+
 if (isset($data)) { unset($data); }
 if (isset($ldata)) { unset($ldata); }
 
@@ -113,12 +126,44 @@ if (strlen($title) == 4) { // year
 		$output[$i]['stop']=mktime(0,0,0,($i!=$days_max ? $month : $next_month),
 			($i!=$days_max ? $i+1 : 1),
 			($i!=$days_max ? $year : $next_year));
+
 		if ($i<=$ldays_max) {
-			$output[$i]['lstart']=mktime(0,0,0,$month,$i,$year-1);
-			$output[$i]['lstop']=mktime(0,0,0,($i!=$ldays_max ? $month : $next_month),
-				($i!=$ldays_max ? $i+1 : 1),
-				($i!=$ldays_max ? $year : $next_year)-1);
+			$td1=$i;
+			$tm1=$month;
+			$ty1=$year-1;
+			$td2=($i!=$ldays_max ? $i+1 : 1);
+			$tm2=($i!=$ldays_max ? $month : $next_month);
+			$ty2=($i!=$ldays_max ? $year : $next_year)-1;
+		} else {
+			$td1=1;
+			$tm1=$next_month;
+			$ty1=$next_year-1;
+			$td2=2;
+			$tm2=$next_month;
+			$ty2=$next_year-1;
 		}
+
+		$output[$i]['lstart']=mktime(0,0,0,$tm1,$td1,$ty1);
+
+		$dow=$neardow[date("w",$output[$i]['start']).date("w",$output[$i]['lstart'])];
+
+		$td1+=$dow;
+		$td2+=$dow;
+		if ($td1 < 1) { $tm1--; }
+		if ($tm1 < 1) { $ty1--; }
+		if ($td1 < 1) { $td1=$lmonlen[intval($tm1)]; }
+		if ($td1 > $lmonlen[intval($tm1)]) { $tm1++; $td1=1; }
+		if ($tm1 > 12) { $tm1=1; $ty1++;}
+
+		if ($td2 < 1) { $tm2--; }
+		if ($tm2 < 1) { $ty2--; }
+		if ($td2 < 1) { $td2=$lmonlen[intval($tm2)]; }
+		if ($td2 > $lmonlen[intval($tm2)]) { $tm2++; $td2=1; }
+		if ($tm2 > 12) { $tm2=1; $ty2++;}
+
+		$output[$i]['lstart']=mktime(0,0,0,$tm1,$td1,$ty1);
+		$output[$i]['lstop']=mktime(0,0,0,$tm2,$td2,$ty2);
+
 		$output[$i]['url']=date("Ymd",$output[$i]['start']);
 		if ($i==$days_max) {
 			$month=$next_month;
