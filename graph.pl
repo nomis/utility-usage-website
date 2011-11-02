@@ -6,6 +6,7 @@ my $xlabel = shift;
 my $ylabel = shift;
 $xlabel =~ s/\\(\'|\"|\\)/$1/g;
 $ylabel =~ s/\\(\'|\"|\\)/$1/g;
+my $max = 0;
 my (@data);
 #my (@values);
 my $i = 0;
@@ -25,8 +26,16 @@ while (my $x = shift) {
 	}
 #	$values[0][$i] = undef;
 #	$values[1][$i] = $u;
+	$t = $u;
+	if ($c < 0) {
+		$t = $t + -$c;
+	}
+	if ($t > $max) {
+		$max = $t;
+	}
 	$i++;
 }
+$max = int($max * 1.05 / 10 + 10) * 10;
 
 my $graph = GD::Graph::bars->new(1000, 400);
 $graph->set_text_clr("black");
@@ -38,6 +47,7 @@ $graph->set(
 	bar_spacing => 2,
 	y_tick_number => 10,
 	y_label_skip => 1,
+	y_max_value => $max,
 	cumulate => 'true',
 #	show_values => \@values,
 #	values_vertical => 1,
