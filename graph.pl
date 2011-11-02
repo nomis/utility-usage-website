@@ -35,7 +35,7 @@ while (my $x = shift) {
 	}
 	$i++;
 }
-$max = int($max * 1.05 / 10 + 10) * 10;
+$max = int($max + 2);
 
 my $graph = GD::Graph::bars->new(1000, 400);
 $graph->set_text_clr("black");
