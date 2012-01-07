@@ -51,7 +51,7 @@ $monlen=Array(0,
 	30,31,30,
 	31,31,30,
 	31,30,31);
-$lmonlen=Array(0,
+$lmonlen=Array(31,
 	31,(date("L", mktime(0,0,0,1,1,substr($title,0,4)-1)) ? 29 : 28),31,
 	30,31,30,
 	31,31,30,
@@ -149,15 +149,16 @@ if (strlen($title) == 4) { // year
 
 		$td1+=$dow;
 		$td2+=$dow;
+
 		if ($td1 < 1) { $tm1--; }
-		if ($tm1 < 1) { $ty1--; }
-		if ($td1 < 1) { $td1=$lmonlen[intval($tm1)]; }
+		if ($tm1 < 1) { $ty1--; $tm1=12; }
+		if ($td1 < 1) { $td1+=$lmonlen[intval($tm1)]; }
 		if ($td1 > $lmonlen[intval($tm1)]) { $tm1++; $td1=1; }
 		if ($tm1 > 12) { $tm1=1; $ty1++;}
 
 		if ($td2 < 1) { $tm2--; }
-		if ($tm2 < 1) { $ty2--; }
-		if ($td2 < 1) { $td2=$lmonlen[intval($tm2)]; }
+		if ($tm2 < 1) { $ty2--; $tm2=12; }
+		if ($td2 < 1) { $td2+=$lmonlen[intval($tm2)]; }
 		if ($td2 > $lmonlen[intval($tm2)]) { $tm2++; $td2=1; }
 		if ($tm2 > 12) { $tm2=1; $ty2++;}
 
