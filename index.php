@@ -110,7 +110,7 @@ if (strlen($title) == 4) { // year
 	$finish=mktime(0,0,0,$next_month,$start_day,$next_year);
 
 	$days_max=$monlen[intval(substr($title,4,2))];
-	$ldays_max=$lmonlen[intval(substr($title,4,2)-1)];
+	$ldays_max=$lmonlen[intval(substr($title,4,2))];
 
 	for ($i=1;$i<=$days_max;$i++) { $days[]=$i; }
 	$days=array_merge(
