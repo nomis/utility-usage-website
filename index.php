@@ -242,8 +242,9 @@ $pass = NULL;
 //$db->exec("SELECT set_curcfg('default')");
 $db->beginTransaction();
 
-$stmt = $db->prepare("SELECT EXTRACT(EPOCH FROM MIN(start)) AS min,EXTRACT(EPOCH FROM MAX(start)) AS max FROM pulses WHERE meter=:meter");
+$stmt = $db->prepare("SELECT EXTRACT(EPOCH FROM MIN(start)) AS min,EXTRACT(EPOCH FROM MAX(start)) AS max FROM pulses WHERE meter IN (:meter, :meter2)");
 $stmt->bindParam("meter", $id);
+$stmt->bindValue("meter2", $id+1);
 $stmt->execute();
 $f=$stmt->fetch(PDO::FETCH_OBJ);
 $min=$f->min;
@@ -255,13 +256,21 @@ foreach ($output as $key => $period) {
 	$debug.="load: ".$id."/".$period['start']."..".$period['stop']." to ".$period['id']."\n";
 	if ($period['stop'] <= $min) { continue; }
 
-	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) * :conv AS usage");
+	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
 	$stmt->bindParam("meter", $id);
 	$stmt->bindParam("start", $period['start']);
 	$stmt->bindParam("stop", $period['stop']);
-	$stmt->bindParam("conv", $conv);
 	$stmt->execute();
 	$data[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
+	$stmt->closeCursor();
+	unset($stmt);
+
+	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
+	$stmt->bindValue("meter", $id+1);
+	$stmt->bindParam("start", $period['start']);
+	$stmt->bindParam("stop", $period['stop']);
+	$stmt->execute();
+	$data[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
 	$stmt->closeCursor();
 	unset($stmt);
 
@@ -271,13 +280,21 @@ foreach ($output as $key => $period) {
 		if ($period['lstop'] <= $min) { continue; }
 #		if ($period['start'] > $max) { continue; }
 
-		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) * :conv AS usage");
+		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
 		$stmt->bindParam("meter", $id);
 		$stmt->bindParam("start", $period['lstart']);
 		$stmt->bindParam("stop", $period['lstop']);
-		$stmt->bindParam("conv", $conv);
 		$stmt->execute();
 		$ldata[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
+		$stmt->closeCursor();
+		unset($stmt);
+
+		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
+		$stmt->bindValue("meter", $id+1);
+		$stmt->bindParam("start", $period['lstart']);
+		$stmt->bindParam("stop", $period['lstop']);
+		$stmt->execute();
+		$ldata[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
 		$stmt->closeCursor();
 		unset($stmt);
 	}
@@ -331,19 +348,21 @@ $units=Array(
 	$div=>'kW·h',
 	1=>'W·h');
 $use=Array(1,'W·h');
+$units=Array(1=>'m³');
+$use=Array(1,'m³');
 $max=0;
 foreach ($output as $key => $period) {
 	if ($data[$key][UX] > $max) { $max=$data[$key][UX]; }
 }
 foreach ($units as $key => $unit) {
 	if ($max/$key < 10000) {
-		$use=Array($key,$unit);
+		$use=Array($key,$unit,str_replace("³", "^3", $unit));
 	}
 }
 
 $exe="./graph.pl";
 $exe.=" ".$name;
-$exe.=" \"".$use[1]."\"";
+$exe.=" \"".$use[2]."\"";
 foreach ($output as $key => $period) {
 	if (isset($period['sname'])) { $sname=$period['sname']; } else { $sname=$period['id']; }
 	$exe.=" $sname,".($data[$key][UX]/$use[0]).",".(($data[$key][UX] - $ldata[$key][UX])/$use[0]);

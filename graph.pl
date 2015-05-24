@@ -4,8 +4,8 @@ use GD::Graph::bars3d;
 
 my $xlabel = shift;
 my $ylabel = shift;
-$xlabel =~ s/\\(\'|\"|\\)/$1/g;
-$ylabel =~ s/\\(\'|\"|\\)/$1/g;
+$xlabel =~ s/\\(\'|\"|\^|\\)/$1/g;
+$ylabel =~ s/\\(\'|\"|\^|\\)/$1/g;
 my $max = 0;
 my (@data);
 #my (@values);
@@ -35,7 +35,7 @@ while (my $x = shift) {
 	}
 	$i++;
 }
-$max = int($max + 2);
+$max = int($max + 1);
 
 my $graph = GD::Graph::bars->new(1000, 400);
 $graph->set_text_clr("black");
