@@ -26,18 +26,20 @@ header("Content-Type: text/html; charset=UTF-8");
 $title=date("Y");
 $xtitle=$ytitle=$title;
 $atitle=$mtitle=$dtitle=$htitle="";
-if ($_GET["data"]=="today") { $_GET["data"]=date("Ymd"); }
-if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
-	$title=$_GET["data"];
-	$xtitle=$ytitle=$matches[1];
-	if ($matches[2]!="") { $xtitle.="-".$matches[2]; $mtitle=$matches[2]; }
-	if ($matches[3]!="") { $xtitle.="-".$matches[3]; $dtitle=$matches[3]; }
-	if ($matches[4]!="") { $xtitle.=" ".$matches[4]; $htitle=$matches[4]; }
-} else if (strlen($_GET["data"]) > 0) {
-	header("HTTP/1.1 404 No Data");
-	header("Content-Type: text/plain");
-	echo "No data for ".$_GET["data"]."\n";
-	die();
+if (isset($_GET["data"])) {
+	if ($_GET["data"]=="today") { $_GET["data"]=date("Ymd"); }
+	if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
+		$title=$_GET["data"];
+		$xtitle=$ytitle=$matches[1];
+		if ($matches[2]!="") { $xtitle.="-".$matches[2]; $mtitle=$matches[2]; }
+		if ($matches[3]!="") { $xtitle.="-".$matches[3]; $dtitle=$matches[3]; }
+		if ($matches[4]!="") { $xtitle.=" ".$matches[4]; $htitle=$matches[4]; }
+	} else if (strlen($_GET["data"]) > 0) {
+		header("HTTP/1.1 404 No Data");
+		header("Content-Type: text/plain");
+		echo "No data for ".$_GET["data"]."\n";
+		die();
+	}
 }
 
 $id=$meter;
@@ -367,14 +369,19 @@ foreach ($output as $key => $period) {
 	if (isset($period['sname'])) { $sname=$period['sname']; } else { $sname=$period['id']; }
 	$exe.=" $sname,".($data[$key][UX]/$use[0]).",".(($data[$key][UX] - $ldata[$key][UX])/$use[0]);
 }
+$exe.=" 2>&1";
 echo '<!--'.str_replace(" "," \\\n",$exe).'-->';
-echo '<img src="data:image/png;base64,';
 ob_start();
 system($exe);
 $img=ob_get_contents();
 ob_end_clean();
-echo base64_encode($img);
-echo '">';
+if (substr($img,0,8) == "\211PNG\r\n\032\n") {
+	echo '<img src="data:image/png;base64,';
+	echo base64_encode($img);
+	echo '">';
+} else {
+	echo "<tt>".htmlentities($img)."</tt>";
+}
 
 echo '<table border="1" width="50%">';
 echo '<tr>';
