@@ -22,7 +22,7 @@ function median()
            }
 
            sort($args);
-          
+
            $n = count($args);
            $h = intval($n / 2);
 
@@ -34,7 +34,7 @@ function median()
 
            break;
    }
-  
+
    return $median;
 }
 

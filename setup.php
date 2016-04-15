@@ -1,4 +1,4 @@
 <?
-$site="gas-pxa.lp0.eu";
+$site="gas.uuid.uk";
 $meter=1;
 ?>
