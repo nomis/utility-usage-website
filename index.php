@@ -258,21 +258,13 @@ foreach ($output as $key => $period) {
 	$debug.="load: ".$id."/".$period['start']."..".$period['stop']." to ".$period['id']."\n";
 	if ($period['stop'] <= $min) { continue; }
 
-	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
+	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) + (reading_calculate(:meter2, to_timestamp(:stop)) - reading_calculate(:meter2, to_timestamp(:start))) AS usage");
 	$stmt->bindParam("meter", $id);
+	$stmt->bindValue("meter2", $id+1);
 	$stmt->bindParam("start", $period['start']);
 	$stmt->bindParam("stop", $period['stop']);
 	$stmt->execute();
 	$data[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
-	$stmt->closeCursor();
-	unset($stmt);
-
-	$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
-	$stmt->bindValue("meter", $id+1);
-	$stmt->bindParam("start", $period['start']);
-	$stmt->bindParam("stop", $period['stop']);
-	$stmt->execute();
-	$data[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
 	$stmt->closeCursor();
 	unset($stmt);
 
@@ -282,21 +274,13 @@ foreach ($output as $key => $period) {
 		if ($period['lstop'] <= $min) { continue; }
 #		if ($period['start'] > $max) { continue; }
 
-		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
+		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) + (reading_calculate(:meter2, to_timestamp(:stop)) - reading_calculate(:meter2, to_timestamp(:start))) AS usage");
 		$stmt->bindParam("meter", $id);
+		$stmt->bindValue("meter2", $id+1);
 		$stmt->bindParam("start", $period['lstart']);
 		$stmt->bindParam("stop", $period['lstop']);
 		$stmt->execute();
 		$ldata[$key][UX]=$stmt->fetch(PDO::FETCH_OBJ)->usage;
-		$stmt->closeCursor();
-		unset($stmt);
-
-		$stmt = $db->prepare("SELECT (reading_calculate(:meter, to_timestamp(:stop)) - reading_calculate(:meter, to_timestamp(:start))) AS usage");
-		$stmt->bindValue("meter", $id+1);
-		$stmt->bindParam("start", $period['lstart']);
-		$stmt->bindParam("stop", $period['lstop']);
-		$stmt->execute();
-		$ldata[$key][UX]+=$stmt->fetch(PDO::FETCH_OBJ)->usage;
 		$stmt->closeCursor();
 		unset($stmt);
 	}
