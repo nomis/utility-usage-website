@@ -21,8 +21,14 @@ while (my $x = shift) {
 		$data[2][$i] = undef;
 		$data[3][$i] = $c;
 	} else {
-		$data[2][$i] = $c;
-		$data[3][$i] = undef;
+		if ($u == 0) {
+			$data[1][$i] = undef;
+			$data[2][$i] = -$c;
+			$data[3][$i] = undef;
+		} else {
+			$data[2][$i] = $c;
+			$data[3][$i] = undef;
+		}
 	}
 #	$values[0][$i] = undef;
 #	$values[1][$i] = $u;
