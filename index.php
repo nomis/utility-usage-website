@@ -237,7 +237,7 @@ if (strlen($title) == 4) { // year
 }
 
 $debug="start: ".microtime(TRUE)."\n";
-$db = new PDO("pgsql:sslmode=verify-full host=proxima.lp0.eu user=lp0_gas dbname=gasmeter", NULL, NULL);
+$db = new PDO("pgsql:dbname=gasmeter", NULL, NULL);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $user = NULL;
 $pass = NULL;
