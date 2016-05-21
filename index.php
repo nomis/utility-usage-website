@@ -31,9 +31,9 @@ if (isset($_GET["data"])) {
 	if (preg_match('/^([0-9]{4})([0-9]{2})?([0-9]{2})?([0-9]{2})?$/',$_GET["data"],$matches)) {
 		$title=$_GET["data"];
 		$xtitle=$ytitle=$matches[1];
-		if ($matches[2]!="") { $xtitle.="-".$matches[2]; $mtitle=$matches[2]; }
-		if ($matches[3]!="") { $xtitle.="-".$matches[3]; $dtitle=$matches[3]; }
-		if ($matches[4]!="") { $xtitle.=" ".$matches[4]; $htitle=$matches[4]; }
+		if (isset($matches[2])) { $xtitle.="-".$matches[2]; $mtitle=$matches[2]; }
+		if (isset($matches[3])) { $xtitle.="-".$matches[3]; $dtitle=$matches[3]; }
+		if (isset($matches[4])) { $xtitle.=" ".$matches[4]; $htitle=$matches[4]; }
 	} else if (strlen($_GET["data"]) > 0) {
 		header("HTTP/1.1 404 No Data");
 		header("Content-Type: text/plain");
