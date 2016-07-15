@@ -16,10 +16,24 @@
 
 	<xsl:template match="usage">
 		<xsl:variable name="max_usage">
-			<xsl:for-each select="periods/period">
-				<xsl:sort select="@usage" data-type="number" order="descending"/>
-				<xsl:if test="position() = 1"><xsl:value-of select="@usage"/></xsl:if>
-			</xsl:for-each>
+			<xsl:variable name="max_normal_usage">
+				<xsl:for-each select="periods/period">
+					<xsl:sort select="@usage" data-type="number" order="descending"/>
+					<xsl:if test="position() = 1"><xsl:value-of select="@usage"/></xsl:if>
+				</xsl:for-each>
+			</xsl:variable>
+			<xsl:variable name="max_compare_usage">
+				<xsl:for-each select="periods/period">
+					<xsl:sort select="@compare_usage" data-type="number" order="descending"/>
+					<xsl:if test="position() = 1"><xsl:value-of select="@compare_usage"/></xsl:if>
+				</xsl:for-each>
+			</xsl:variable>
+			<xsl:choose>
+				<xsl:when test="count(periods/period/@compare_usage) = 0"><xsl:value-of select="$max_normal_usage"/></xsl:when>
+				<xsl:when test="count(periods/period/@usage) = 0"><xsl:value-of select="$max_compare_usage"/></xsl:when>
+				<xsl:when test="$max_normal_usage > $max_compare_usage"><xsl:value-of select="$max_normal_usage"/></xsl:when>
+				<xsl:otherwise><xsl:value-of select="$max_compare_usage"/></xsl:otherwise>
+			</xsl:choose>
 		</xsl:variable>
 
 		<xsl:choose>
@@ -128,7 +142,7 @@
 
 	<xsl:template match="periods" mode="graph">
 		<xsl:param name="max_usage"/>
-		<xsl:variable name="svg_width" select="1000"/>
+		<xsl:variable name="svg_width" select="1200"/>
 		<xsl:variable name="svg_height" select="400"/>
 		<xsl:variable name="x_text_height">
 			<xsl:choose>
@@ -149,7 +163,7 @@
 		<xsl:variable name="y_steps" select="10"/>
 		<xsl:variable name="y_tick_width" select="5"/>
 		<xsl:variable name="y_step_height" select="($svg_height - $x_label_height) div $y_steps"/>
-		<xsl:variable name="bar_width" select="0.75"/>
+		<xsl:variable name="bar_width" select="0.85"/>
 
 		<svg xmlns="http://www.w3.org/2000/svg" version="1.1">
 			<xsl:attribute name="width"><xsl:value-of select="$svg_width"/></xsl:attribute>
@@ -158,14 +172,59 @@
 
 			<g stroke="grey" stroke-width="1">
 				<xsl:for-each select="period">
+					<xsl:variable name="usage">
+						<xsl:choose>
+							<xsl:when test="@compare_usage and @usage > @compare_usage"><xsl:value-of select="@compare_usage"/></xsl:when>
+							<xsl:when test="not(@usage)">0</xsl:when>
+							<xsl:otherwise><xsl:value-of select="@usage"/></xsl:otherwise>
+						</xsl:choose>
+					</xsl:variable>
+					<xsl:variable name="over_usage">
+						<xsl:choose>
+							<xsl:when test="@compare_usage and @usage > @compare_usage"><xsl:value-of select="@usage - @compare_usage"/></xsl:when>
+							<xsl:otherwise>0</xsl:otherwise>
+						</xsl:choose>
+					</xsl:variable>
+					<xsl:variable name="under_usage">
+						<xsl:choose>
+							<xsl:when test="not(@usage)"><xsl:value-of select="@compare_usage"/></xsl:when>
+							<xsl:when test="@compare_usage or (@compare_usage > @usage)"><xsl:value-of select="@compare_usage - @usage"/></xsl:when>
+							<xsl:otherwise>0</xsl:otherwise>
+						</xsl:choose>
+					</xsl:variable>
+					<xsl:variable name="compare_offset">
+						<xsl:choose>
+							<xsl:when test="not(@usage)">0.5</xsl:when>
+							<xsl:otherwise>1.5</xsl:otherwise>
+						</xsl:choose>
+					</xsl:variable>
+
 					<!-- bars -->
-					<xsl:if test="@usage">
-						<rect fill="steelblue">
-							<xsl:attribute name="x"><xsl:value-of select="$y_label_width + 0.5 + floor(($x_period_width) * (position() - 1) + ($x_period_width - ($x_period_width * $bar_width)) div 2)"/></xsl:attribute>
-							<xsl:attribute name="y"><xsl:value-of select="0.5 + ($svg_height - $x_label_height - 1) - floor(($svg_height - $x_label_height - 1) * @usage div $max_usage)"/></xsl:attribute>
-							<xsl:attribute name="width"><xsl:value-of select="floor($x_period_width * $bar_width)"/></xsl:attribute>
-							<xsl:attribute name="height"><xsl:value-of select="floor(($svg_height - $x_label_height - 1) * @usage div $max_usage)"/></xsl:attribute>
-						</rect>
+					<xsl:if test="1">
+						<xsl:if test="$over_usage > 0">
+							<rect fill="firebrick">
+								<xsl:attribute name="x"><xsl:value-of select="$y_label_width + 0.5 + floor(($x_period_width) * (position() - 1) + ($x_period_width - ($x_period_width * $bar_width)) div 2)"/></xsl:attribute>
+								<xsl:attribute name="y"><xsl:value-of select="$compare_offset + ($svg_height - $x_label_height - 1) - floor(($svg_height - $x_label_height - 1) * ($usage + $over_usage) div $max_usage)"/></xsl:attribute>
+								<xsl:attribute name="width"><xsl:value-of select="floor($x_period_width * $bar_width)"/></xsl:attribute>
+								<xsl:attribute name="height"><xsl:value-of select="floor(($svg_height - $x_label_height - 1) * $over_usage div $max_usage)"/></xsl:attribute>
+							</rect>
+						</xsl:if>
+						<xsl:if test="$under_usage > 0">
+							<rect fill="limegreen">
+								<xsl:attribute name="x"><xsl:value-of select="$y_label_width + 0.5 + floor(($x_period_width) * (position() - 1) + ($x_period_width - ($x_period_width * $bar_width)) div 2)"/></xsl:attribute>
+								<xsl:attribute name="y"><xsl:value-of select="$compare_offset + ($svg_height - $x_label_height - 1) - floor(($svg_height - $x_label_height - 1) * ($usage + $under_usage) div $max_usage)"/></xsl:attribute>
+								<xsl:attribute name="width"><xsl:value-of select="floor($x_period_width * $bar_width)"/></xsl:attribute>
+								<xsl:attribute name="height"><xsl:value-of select="floor(($svg_height - $x_label_height - 1) * $under_usage div $max_usage)"/></xsl:attribute>
+							</rect>
+						</xsl:if>
+						<xsl:if test="$usage > 0">
+							<rect fill="mediumblue">
+								<xsl:attribute name="x"><xsl:value-of select="$y_label_width + 0.5 + floor(($x_period_width) * (position() - 1) + ($x_period_width - ($x_period_width * $bar_width)) div 2)"/></xsl:attribute>
+								<xsl:attribute name="y"><xsl:value-of select="0.5 + ($svg_height - $x_label_height - 1) - floor(($svg_height - $x_label_height - 1) * $usage div $max_usage)"/></xsl:attribute>
+								<xsl:attribute name="width"><xsl:value-of select="floor($x_period_width * $bar_width)"/></xsl:attribute>
+								<xsl:attribute name="height"><xsl:value-of select="floor(($svg_height - $x_label_height - 1) * $usage div $max_usage)"/></xsl:attribute>
+							</rect>
+						</xsl:if>
 					</xsl:if>
 				</xsl:for-each>
 			</g>
@@ -237,7 +296,7 @@
 					<xsl:attribute name="font-size"><xsl:value-of select="$y_text_height"/></xsl:attribute>
 					<xsl:attribute name="x"><xsl:value-of select="$y_label_width - $y_tick_width"/></xsl:attribute>
 					<xsl:attribute name="y"><xsl:value-of select="floor($y_step_height * (position() - 1))"/></xsl:attribute>
-					<xsl:value-of select="format-number(($y_steps - (position() - 1)) div $y_steps * $max_usage, '#,##0.0')"/>
+					<xsl:value-of select="format-number(($y_steps - (position() - 1)) div $y_steps * $max_usage, '#,##0.00')"/>
 				</text>
 			</xsl:for-each>
 
