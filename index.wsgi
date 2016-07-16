@@ -158,8 +158,8 @@ class Usage:
 				attrs["short_name"] = period.short_name
 			if period.uri:
 				attrs["uri"] = period.uri
-			attrs["from"] = period.start_ts.isoformat()
-			attrs["to"] = period.end_ts.isoformat()
+#			attrs["from"] = period.start_ts.isoformat()
+#			attrs["to"] = period.end_ts.isoformat()
 
 			usage = 0
 			compare_usage = 0
