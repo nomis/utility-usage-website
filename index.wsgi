@@ -111,9 +111,7 @@ class View:
 			while start.astimezone(tz).replace(tzinfo=None) < end:
 				local_start = start.astimezone(tz)
 				local_end = (start + timedelta(minutes=1)).astimezone(tz)
-				local_compare_start = (start + timedelta(weeks=-52)).astimezone(tz)
-				local_compare_end = (start + timedelta(weeks=-52, minutes=1)).astimezone(tz)
-				self.periods.append(Period(local_start.strftime("%M:%S"), (local_start + timedelta(minutes=1, milliseconds=-1)).strftime("%M:%S"), local_start.strftime("%M"), local_start, local_end, local_compare_start, local_compare_end, None))
+				self.periods.append(Period(local_start.strftime("%M:%S"), (local_start + timedelta(minutes=1, milliseconds=-1)).strftime("%M:%S"), local_start.strftime("%M"), local_start, local_end, None, None, None))
 				start += timedelta(minutes=1)
 
 class Usage:
@@ -133,7 +131,7 @@ class Usage:
 				+ ", meters.id"
 				+ ", reading_calculate(meters.id, period.stop) - reading_calculate(meters.id, period.start) AS usage"
 				+ ", reading_calculate(meters.id, period.compare_stop) - reading_calculate(meters.id, period.compare_start) AS compare_usage"
-				+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s, %(compare_stop)s) AS period(start, stop, compare_start, compare_stop), unnest(%(meters)s) AS meters(id)"
+				+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop), unnest(%(meters)s) AS meters(id)"
 				+ " ORDER BY period.start, meters.id",
 				{ "meters": config["meters"], "start": start_periods, "stop": end_periods, "compare_start": compare_start_periods, "compare_stop": compare_end_periods })
 			self.query_time = time.time() - now
