@@ -202,6 +202,14 @@ class Usage:
 
 def application(environ, start_response):
 	try:
+		attrs = {}
+		if config["type"] == "gas":
+			attrs["units"] = u"m³"
+		elif config["type"] == "electricity":
+			attrs["units"] = u"kW·h"
+		else:
+			raise webob.exc.HTTPInternalServerError("Unknown type configured")
+
 		req = webob.Request(environ)
 		res = webob.Response(content_type="application/xml")
 		usage = Usage(View(req))
@@ -210,7 +218,7 @@ def application(environ, start_response):
 		doc = XMLGenerator(f, "UTF-8")
 		doc.startDocument()
 		f.write('<?xml-stylesheet type="text/xsl" href="/usage.xsl"?>\n'.encode("UTF-8"))
-		doc.startElement(config["type"], {})
+		doc.startElement(config["type"], attrs)
 		usage.output(doc)
 		doc.endElement(config["type"])
 

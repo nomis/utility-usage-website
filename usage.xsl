@@ -308,7 +308,7 @@
 				<xsl:attribute name="x"><xsl:value-of select="$x"/></xsl:attribute>
 				<xsl:attribute name="y"><xsl:value-of select="$y"/></xsl:attribute>
 				<xsl:attribute name="transform" xml:space="preserve">rotate(180 <xsl:value-of select="$x"/> <xsl:value-of select="$y"/>)</xsl:attribute>
-				m³
+				<xsl:value-of select="/*/@units"/>
 			</text>
 		</svg>
 	</xsl:template>
