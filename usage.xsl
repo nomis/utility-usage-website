@@ -104,18 +104,18 @@
 				<xsl:if test="count(period/@usage) > 1">
 					<tr class="summary average">
 						<th scope="row" class="name">Average</th>
-						<td class="usage"><xsl:value-of select="format-number(sum(period/@usage) div count(period/@usage), '#,##0.00')"/></td>
+						<td class="usage"><xsl:value-of select="format-number(sum(period/@usage) div count(period/@usage), /*/@format)"/></td>
 					</tr>
 				</xsl:if>
 				<xsl:if test="count(period/@usage) > 2">
 					<tr class="summary median">
 						<th scope="row" class="name">Median</th>
-						<td class="usage"><xsl:value-of select="format-number($usage_median, '#,##0.00')"/></td>
+						<td class="usage"><xsl:value-of select="format-number($usage_median, /*/@format)"/></td>
 					</tr>
 				</xsl:if>
 				<tr class="summary total">
 					<th scope="row" class="name">Total</th>
-					<td class="usage"><xsl:value-of select="format-number(sum(period/@usage), '#,##0.00')"/></td>
+					<td class="usage"><xsl:value-of select="format-number(sum(period/@usage), /*/@format)"/></td>
 				</tr>
 			</tfoot>
 		</table>
@@ -136,7 +136,7 @@
 					</xsl:otherwise>
 				</xsl:choose>
 			</th>
-			<td class="usage"><xsl:value-of select="format-number(@usage, '#,##0.00')"/></td>
+			<td class="usage"><xsl:value-of select="format-number(@usage, /*/@format)"/></td>
 		</tr>
 	</xsl:template>
 
@@ -296,7 +296,7 @@
 					<xsl:attribute name="font-size"><xsl:value-of select="$y_text_height"/></xsl:attribute>
 					<xsl:attribute name="x"><xsl:value-of select="$y_label_width - $y_tick_width"/></xsl:attribute>
 					<xsl:attribute name="y"><xsl:value-of select="floor($y_step_height * (position() - 1))"/></xsl:attribute>
-					<xsl:value-of select="format-number(($y_steps - (position() - 1)) div $y_steps * $max_usage, '#,##0.00')"/>
+					<xsl:value-of select="format-number(($y_steps - (position() - 1)) div $y_steps * $max_usage, /*/@format)"/>
 				</text>
 			</xsl:for-each>
 
