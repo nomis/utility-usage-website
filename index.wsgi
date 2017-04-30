@@ -126,14 +126,33 @@ class Usage:
 			compare_start_periods = [period.compare_start_ts for period in view.periods]
 			compare_end_periods = [period.compare_end_ts for period in view.periods]
 			now = time.time()
-			c.execute("SELECT"
-				+ " period.start"
-				+ ", meters.id"
-				+ ", reading_calculate(meters.id, period.stop) - reading_calculate(meters.id, period.start) AS usage"
-				+ ", reading_calculate(meters.id, period.compare_stop) - reading_calculate(meters.id, period.compare_start) AS compare_usage"
-				+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop), unnest(%(meters)s) AS meters(id)"
-				+ " ORDER BY period.start, meters.id",
-				{ "meters": config["meters"], "start": start_periods, "stop": end_periods, "compare_start": compare_start_periods, "compare_stop": compare_end_periods })
+			if config["type"] == "gas":
+				c.execute("SELECT"
+					+ " period.start"
+					+ ", meters.id"
+					+ ", reading_calculate(meters.id, period.stop) - reading_calculate(meters.id, period.start) AS usage"
+					+ ", reading_calculate(meters.id, period.compare_stop) - reading_calculate(meters.id, period.compare_start) AS compare_usage"
+					+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop)"
+					+ ", unnest(%(meters)s) AS meters(id)"
+					+ " ORDER BY period.start, meters.id",
+					{
+						"meters": config["meters"],
+						"start": start_periods, "stop": end_periods,
+						"compare_start": compare_start_periods, "compare_stop": compare_end_periods
+					})
+			elif config["type"] == "electricity":
+				c.execute("SELECT"
+					+ " period.start"
+					+ ", meters.id"
+					+ ", meter_reading_usage_rescale(meters.base_id, meters.id, period.start, period.stop) AS usage"
+					+ ", meter_reading_usage_rescale(meters.base_id, meters.id, period.compare_start, period.compare_stop) AS compare_usage"
+					+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop)"
+					+ ", unnest(%(meters)s, %(base_meters)s) AS meters(id, base_id)"
+					+ " ORDER BY period.start, meters.id",
+					{	"meters": config["meters"].keys(), "base_meters": config["meters"].values(),
+						"start": start_periods, "stop": end_periods,
+						"compare_start": compare_start_periods, "compare_stop": compare_end_periods
+					})
 			self.query_time = time.time() - now
 			self.usage = c.fetchall()
 
@@ -191,9 +210,9 @@ def application(environ, start_response):
 		doc = XMLGenerator(f, "UTF-8")
 		doc.startDocument()
 		f.write('<?xml-stylesheet type="text/xsl" href="/usage.xsl"?>\n'.encode("UTF-8"))
-		doc.startElement("gas", {})
+		doc.startElement(config["type"], {})
 		usage.output(doc)
-		doc.endElement("gas")
+		doc.endElement(config["type"])
 
 		return res(environ, start_response)
 	except webob.exc.HTTPException, e:
