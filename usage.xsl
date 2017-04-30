@@ -6,7 +6,7 @@
 			<head>
 				<title><xsl:value-of select="usage/@name"/></title>
 				<link rel="stylesheet" href="/normalize.css" type="text/css"/>
-				<link rel="stylesheet" href="/gas.css" type="text/css"/>
+				<link rel="stylesheet" href="/usage.css" type="text/css"/>
 			</head>
 			<body>
 				<xsl:apply-templates select="usage"/>

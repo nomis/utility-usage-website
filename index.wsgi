@@ -190,7 +190,7 @@ def application(environ, start_response):
 		f = res.body_file
 		doc = XMLGenerator(f, "UTF-8")
 		doc.startDocument()
-		f.write('<?xml-stylesheet type="text/xsl" href="/gas.xsl"?>\n'.encode("UTF-8"))
+		f.write('<?xml-stylesheet type="text/xsl" href="/usage.xsl"?>\n'.encode("UTF-8"))
 		doc.startElement("gas", {})
 		usage.output(doc)
 		doc.endElement("gas")
