@@ -94,7 +94,7 @@
 			<thead>
 				<tr>
 					<th scope="col" class="name"><xsl:value-of select="@type"/></th>
-					<th scope="col" class="usage">Usage (m³)</th>
+					<th scope="col" class="usage">Usage (<xsl:value-of select="/*/@units"/>)</th>
 				</tr>
 			</thead>
 			<tbody>
