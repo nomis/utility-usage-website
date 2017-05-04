@@ -55,7 +55,7 @@ class View:
 
 		self.periods = []
 		self.parent = {}
-		base_uri = "/" + self.device + "/" if len(uri) >= 2 else "/"
+		base_uri = "/"
 
 		if len(self.date) == 4:
 			self.period_type = "Month"
