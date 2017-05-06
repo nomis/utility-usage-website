@@ -232,22 +232,31 @@ class Graph:
 		]
 
 		if view.graph == "load":
+			cfs = ["MIN", "AVERAGE", "MAX"]
 			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
-				cdef = ""
+				cdef = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(load_rrds):
-					command.append("DEF:{0}{1}_avg={2}:{0}:AVERAGE".format(ds, i, load_rrds[i]))
-					if i == 0:
-						cdef = "CDEF:{0}_avg={0}{1}_avg".format(ds, i)
-					else:
-						cdef += ",{0}{1}_avg,+".format(ds, i)
-				command.append(cdef)
+					for cf in cfs:
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, load_rrds[i]))
+						if i == 0:
+							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
+						else:
+							cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
+				command.extend(cdef.values())
+
+			for cf in cfs:
+				command.append("CDEF:reactivePower_{0}_neg=0,reactivePower_{0},-".format(cf))
 
 			command.extend([
-				"CDEF:reactivePower_avg_neg=0,reactivePower_avg,-",
-
-				"AREA:activePower_avg#FF9900:Active Power",
-				"AREA:reactivePower_avg_neg#CC00CC:Reactive Power",
+				"AREA:activePower_AVERAGE#FF9900:Active Power",
+				"AREA:reactivePower_AVERAGE_neg#CC00CC:Reactive Power",
 			])
+
+			if view.period_type == "Hour":
+				command.extend([
+					"LINE1:activePower_MAX#000000",
+					"LINE1:reactivePower_MAX_neg#000000",
+				])
 		elif view.graph == "supply":
 			pass
 
@@ -255,8 +264,8 @@ class Graph:
 			buffer = tempfile.TemporaryFile()
 			rrdtool.graph(["/dev/fd/{0}".format(buffer.fileno())] + command)
 			self.data = buffer.read()
-		except rrdtool.error as e:
-			raise Exception(e, " ".join(command))
+		except BaseException as e:
+			raise Exception(e, " ".join([str(x) for x in command]))
 
 	def output(self, f):
 		f.write(self.data)
