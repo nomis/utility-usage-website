@@ -1,12 +1,15 @@
 # coding: utf8
-from xml.sax.saxutils import XMLGenerator
 from datetime import datetime, timedelta
+from xml.sax.saxutils import XMLGenerator
 import collections
 import itertools
+import os
 import psycopg2.extras
 import psycopg2.pool
 import pytz
 import re
+import rrdtool
+import tempfile
 import time
 import tzlocal
 import webob
@@ -44,6 +47,11 @@ class View:
 		uri = uri[1:].split("/")
 		if len(uri) == 1:
 			self.date = uri[0]
+			self.output = "table"
+		elif len(uri) == 3 and uri[1] == "graph" and uri[2] in ["load", "supply"]:
+			self.date = uri[0]
+			self.output = "graph"
+			self.graph = uri[2]
 		else:
 			raise webob.exc.HTTPNotFound("Invalid URI")
 
@@ -149,7 +157,7 @@ class Usage:
 					+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop)"
 					+ ", unnest(%(meters)s, %(base_meters)s) AS meters(id, base_id)"
 					+ " ORDER BY period.start, meters.id",
-					{	"meters": config["meters"].keys(), "base_meters": config["meters"].values(),
+					{	"meters": config["meters"].keys(), "base_meters": [x["base"] for x in config["meters"].values()],
 						"start": start_periods, "stop": end_periods,
 						"compare_start": compare_start_periods, "compare_stop": compare_end_periods
 					})
@@ -200,6 +208,58 @@ class Usage:
 		doc.endElement("periods")
 		doc.endElement("usage")
 
+class Graph:
+	def __init__(self, view):
+		self.view = view
+		self.data = b""
+
+		load_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",load.rrd") for meter in config["meters"].values()]
+		supply_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",supply.rrd") for meter in config["meters"].values()]
+
+		command = [
+			"-s", str(int((view.periods[0].start_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())),
+			"-e", str(int((view.periods[-1].end_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())),
+
+			"-a", "PNG",
+			"-w", "1103",
+			"-h", "200",
+			"-R", "mono",
+			"-G", "mono",
+			"--border", "0",
+			"-c", "BACK#FFFFFF",
+
+			"-l", "0",
+			"-v", "W",
+		]
+
+		if view.graph == "load":
+			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
+				cdef = ""
+				for i, rrd in enumerate(load_rrds):
+					command.append("DEF:{0}{1}={2}:{0}:AVERAGE".format(ds, i, load_rrds[i]))
+					if i == 0:
+						cdef = "CDEF:{0}={0}{1}".format(ds, i)
+					else:
+						cdef += ",{0}{1},+".format(ds, i)
+				command.append(cdef)
+
+			command.extend([
+				"AREA:reactivePower#CC00CC:STACK:Reactive Power",
+				"AREA:activePower#FF9900:STACK:Active Power",
+			])
+		elif view.graph == "supply":
+			pass
+
+		try:
+			buffer = tempfile.TemporaryFile()
+			rrdtool.graph(["/dev/fd/{0}".format(buffer.fileno())] + command)
+			self.data = buffer.read()
+		except rrdtool.error as e:
+			raise Exception(e, " ".join(command))
+
+	def output(self, f):
+		f.write(self.data)
+
 def application(environ, start_response):
 	try:
 		attrs = {}
@@ -213,16 +273,29 @@ def application(environ, start_response):
 			raise webob.exc.HTTPInternalServerError("Unknown type configured")
 
 		req = webob.Request(environ)
-		res = webob.Response(content_type="application/xml")
-		usage = Usage(View(req))
+		view = View(req)
 
-		f = res.body_file
-		doc = XMLGenerator(f, "UTF-8")
-		doc.startDocument()
-		f.write('<?xml-stylesheet type="text/xsl" href="/usage.xsl"?>\n'.encode("UTF-8"))
-		doc.startElement(config["type"], attrs)
-		usage.output(doc)
-		doc.endElement(config["type"])
+		if view.output == "table":
+			usage = Usage(view)
+
+			res = webob.Response(content_type="application/xml")
+			f = res.body_file
+			doc = XMLGenerator(f, "UTF-8")
+			doc.startDocument()
+			f.write('<?xml-stylesheet type="text/xsl" href="/usage.xsl"?>\n'.encode("UTF-8"))
+			doc.startElement(config["type"], attrs)
+			usage.output(doc)
+			if config.get("rrd"):
+				doc.startElement("graph", { "uri": "/" + view.date + "/graph/load" })
+				doc.endElement("graph")
+			doc.endElement(config["type"])
+		elif view.output == "graph":
+			graph = Graph(view)
+
+			res = webob.Response(content_type="image/png")
+			graph.output(res.body_file)
+		else:
+			raise webob.exc.HTTPInternalServerError("Unknown view output")
 
 		return res(environ, start_response)
 	except webob.exc.HTTPException, e:

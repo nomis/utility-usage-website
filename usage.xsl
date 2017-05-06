@@ -53,6 +53,7 @@
 		<xsl:apply-templates select="periods" mode="graph">
 			<xsl:with-param name="max_usage"><xsl:value-of select="$max_usage"/></xsl:with-param>
 		</xsl:apply-templates>
+		<xsl:apply-templates select="../graph"/>
 		<xsl:apply-templates select="periods" mode="table"/>
 	</xsl:template>
 
@@ -311,5 +312,12 @@
 				<xsl:value-of select="/*/@units"/>
 			</text>
 		</svg>
+	</xsl:template>
+
+	<xsl:template match="graph">
+		<img>
+			<xsl:attribute name="src"><xsl:value-of select="@uri"/></xsl:attribute>
+			<xsl:attribute name="alt"></xsl:attribute>
+		</img>
 	</xsl:template>
 </xsl:stylesheet>

@@ -10,3 +10,4 @@ tbody th { text-align: left; font-weight: normal; }
 tbody tr:nth-child(even) { background-color: whitesmoke; }
 tfoot th { text-align: left; }
 tfoot th, tfoot td { background-color: silver; }
+img { margin: 0 auto; }
