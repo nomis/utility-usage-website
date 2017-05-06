@@ -228,7 +228,6 @@ class Graph:
 			"--border", "0",
 			"-c", "BACK#FFFFFF",
 
-			"-l", "0",
 			"-v", "W",
 		]
 
@@ -236,16 +235,18 @@ class Graph:
 			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
 				cdef = ""
 				for i, rrd in enumerate(load_rrds):
-					command.append("DEF:{0}{1}={2}:{0}:AVERAGE".format(ds, i, load_rrds[i]))
+					command.append("DEF:{0}{1}_avg={2}:{0}:AVERAGE".format(ds, i, load_rrds[i]))
 					if i == 0:
-						cdef = "CDEF:{0}={0}{1}".format(ds, i)
+						cdef = "CDEF:{0}_avg={0}{1}_avg".format(ds, i)
 					else:
-						cdef += ",{0}{1},+".format(ds, i)
+						cdef += ",{0}{1}_avg,+".format(ds, i)
 				command.append(cdef)
 
 			command.extend([
-				"AREA:reactivePower#CC00CC:STACK:Reactive Power",
-				"AREA:activePower#FF9900:STACK:Active Power",
+				"CDEF:reactivePower_avg_neg=0,reactivePower_avg,-",
+
+				"AREA:activePower_avg#FF9900:Active Power",
+				"AREA:reactivePower_avg_neg#CC00CC:Reactive Power",
 			])
 		elif view.graph == "supply":
 			pass
