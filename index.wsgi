@@ -261,7 +261,7 @@ class Graph:
 			pass
 
 		try:
-			buffer = tempfile.TemporaryFile()
+			buffer = tempfile.TemporaryFile(dir="/dev/shm")
 			rrdtool.graph(["/dev/fd/{0}".format(buffer.fileno())] + command)
 			self.data = buffer.read()
 		except BaseException as e:
