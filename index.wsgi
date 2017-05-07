@@ -228,10 +228,14 @@ class Graph:
 			"--border", "0",
 			"-c", "BACK#FFFFFF",
 
-			"-v", "W",
+			"-A",
 		]
 
 		if view.graph == "load":
+			command.extend([
+				"-v", "W",
+			])
+
 			cfs = ["MIN", "AVERAGE", "MAX"]
 			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
 				cdef = dict({(cf, "") for cf in cfs})
@@ -258,7 +262,36 @@ class Graph:
 					"LINE1:reactivePower_MAX_neg#000000",
 				])
 		elif view.graph == "supply":
-			pass
+			if view.period_type == "Minute":
+				command.append("-Y")
+
+			command.extend([
+				"-v", "V",
+			])
+
+			cfs = ["MIN", "AVERAGE", "MAX"]
+			for ds in ["voltage", "frequency", "temperature"]:
+				cdef = dict({(cf, "") for cf in cfs})
+				for i, rrd in enumerate(supply_rrds):
+					for cf in cfs:
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, supply_rrds[i]))
+						if i == 0:
+							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
+						else:
+							cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
+				command.extend(cdef.values())
+
+			if view.period_type == "Hour":
+				command.append("CDEF:voltage_MINMAX=voltage_MAX,voltage_MIN,-")
+
+				command.extend([
+					"AREA:voltage_MIN#00000000",
+					"AREA:voltage_MINMAX#6C3612:Voltage:STACK",
+				])
+			else:
+				command.extend([
+					"LINE1:voltage_AVERAGE#6C3612:Voltage",
+				])
 
 		try:
 			buffer = tempfile.TemporaryFile(dir="/dev/shm")
@@ -298,6 +331,9 @@ def application(environ, start_response):
 			if config.get("rrd"):
 				doc.startElement("graph", { "uri": "/" + view.date + "/graph/load" })
 				doc.endElement("graph")
+				if view.period_type != "Month":
+					doc.startElement("graph", { "uri": "/" + view.date + "/graph/supply" })
+					doc.endElement("graph")
 			doc.endElement(config["type"])
 		elif view.output == "graph":
 			graph = Graph(view)
