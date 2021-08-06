@@ -1,0 +1,10 @@
+dsn: dbname=elecmeter
+
+type: electricity
+
+rrd: /home/powermeter/data/
+
+meters:
+ 2:
+  base: 1
+  rrd: "1234567890123"

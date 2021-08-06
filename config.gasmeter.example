@@ -1,0 +1,7 @@
+dsn: dbname=gasmeter
+
+type: gas
+
+meters:
+- 1
+- 2
