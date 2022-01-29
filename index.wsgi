@@ -1,7 +1,7 @@
 # coding: utf8
 #
 # utility-usage-website - Display gas/electricity usage using XSLT
-# Copyright 2011-2012,2015-2017,2021  Simon Arlott
+# Copyright 2011-2012,2015-2017,2021-2022  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -233,9 +233,12 @@ class Graph:
 		load_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",load.rrd") for meter in config["meters"].values()]
 		supply_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",supply.rrd") for meter in config["meters"].values()]
 
+		start = int((view.periods[0].start_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())
+		end = int((view.periods[-1].end_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())
+
 		command = [
-			"-s", str(int((view.periods[0].start_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())),
-			"-e", str(int((view.periods[-1].end_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())),
+			"-s", str(start),
+			"-e", str(end),
 
 			"-a", "PNG",
 			"-w", "1103",
@@ -291,14 +294,34 @@ class Graph:
 				cdef = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(supply_rrds):
 					for cf in cfs:
-						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, supply_rrds[i]))
+						if view.period_type == "Month":
+							command.append("DEF:{0}{1}_{2}={3}:{0}:{2}:step=86400".format(ds, i, cf, supply_rrds[i]))
+						else:
+							command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, supply_rrds[i]))
 						if i == 0:
 							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
 						else:
 							cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
-				command.extend(cdef.values())
+					command.extend(cdef.values())
 
-			if view.period_type == "Hour":
+			if view.period_type == "Month":
+				command.append("CDEF:voltage_MIN_trend=voltage_MIN")
+				command.append("CDEF:voltage_AVG_trend=voltage_AVERAGE")
+				command.append("CDEF:voltage_MAX_trend=voltage_MAX")
+				command.append("CDEF:voltage_MIN_good=voltage_MIN_trend,215.2,GE,voltage_MIN_trend,UNKN,IF")
+				command.append("CDEF:voltage_MIN_bad=voltage_MIN_trend,215.2,GE,UNKN,voltage_MIN_trend,IF")
+				command.append("CDEF:voltage_MAX_good=voltage_MAX_trend,254,LE,voltage_MAX_trend,UNKN,IF")
+				command.append("CDEF:voltage_MAX_bad=voltage_MAX_trend,254,LE,UNKN,voltage_MAX_trend,IF")
+
+				command.extend([
+					"LINE1:voltage_MIN_trend#6CC600:Min OK",
+					"LINE1:voltage_MIN_bad#FC00FC:Too Low",
+					"LINE1:voltage_AVG_trend#6C3612:Voltage",
+					"LINE1:voltage_MAX_trend#6CC600:Max OK",
+					"LINE1:voltage_MAX_bad#FC00FC:Too High",
+					"LINE1:voltage_AVG_trend#6C3612",
+				])
+			elif view.period_type == "Hour":
 				command.append("CDEF:voltage_MINMAX=voltage_MAX,voltage_MIN,-")
 
 				command.extend([
@@ -348,9 +371,8 @@ def application(environ, start_response):
 			if config.get("rrd"):
 				doc.startElement("graph", { "uri": "/" + view.date + "/graph/load" })
 				doc.endElement("graph")
-				if view.period_type != "Month":
-					doc.startElement("graph", { "uri": "/" + view.date + "/graph/supply" })
-					doc.endElement("graph")
+				doc.startElement("graph", { "uri": "/" + view.date + "/graph/supply" })
+				doc.endElement("graph")
 			doc.endElement(config["type"])
 		elif view.output == "graph":
 			graph = Graph(view)
