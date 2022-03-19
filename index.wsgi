@@ -261,7 +261,8 @@ class Graph:
 				cdef = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(load_rrds):
 					for cf in cfs:
-						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, load_rrds[i]))
+						step = ":step=86400" if view.period_type == "Month" else ""
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, load_rrds[i], step))
 						if i == 0:
 							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
 						else:
@@ -276,7 +277,13 @@ class Graph:
 				"AREA:reactivePower_AVERAGE_neg#CC00CC:Reactive Power",
 			])
 
-			if view.period_type == "Hour":
+			if view.period_type == "Month":
+				command.append("CDEF:activePower_MIN_trend=activePower_MIN")
+
+				command.extend([
+					"LINE1:activePower_MIN_trend#000000",
+				])
+			elif view.period_type == "Hour":
 				command.extend([
 					"LINE1:activePower_MAX#000000",
 					"LINE1:reactivePower_MAX_neg#000000",
@@ -294,10 +301,8 @@ class Graph:
 				cdef = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(supply_rrds):
 					for cf in cfs:
-						if view.period_type == "Month":
-							command.append("DEF:{0}{1}_{2}={3}:{0}:{2}:step=86400".format(ds, i, cf, supply_rrds[i]))
-						else:
-							command.append("DEF:{0}{1}_{2}={3}:{0}:{2}".format(ds, i, cf, supply_rrds[i]))
+						step = ":step=86400" if view.period_type == "Month" else ""
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, supply_rrds[i], step))
 						if i == 0:
 							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
 						else:
