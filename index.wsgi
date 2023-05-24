@@ -352,7 +352,7 @@ def application(environ, start_response):
 			attrs["units"] = "m³"
 			attrs["format"] = "#,##0.00"
 		elif config["type"] == "electricity":
-			attrs["units"] = "kW·h"
+			attrs["units"] = "kW⋅h"
 			attrs["format"] = "#,##0.000"
 		else:
 			raise webob.exc.HTTPInternalServerError("Unknown type configured")
