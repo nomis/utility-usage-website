@@ -256,15 +256,21 @@ class Graph:
 			cfs = ["MIN", "AVERAGE", "MAX"]
 			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
 				cdef = dict({(cf, "") for cf in cfs})
+				cdef2 = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(load_rrds):
 					for cf in cfs:
 						step = ":step=86400" if view.period_type == "Month" else ""
 						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, load_rrds[i], step))
+						step = 86400 if view.period_type == "Month" else 3600 * 4
+						command.append("DEF:{0}{1}_step_{2}={3}:{0}:{2}:step={4}".format(ds, i, cf, load_rrds[i], step))
 						if i == 0:
 							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
+							cdef2[cf] = "CDEF:{0}_step_{2}={0}{1}_step_{2}".format(ds, i, cf)
 						else:
-							cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
+							cdef[cf] += ",{0}{1}_step_{2},+".format(ds, i, cf)
+							cdef2[cf] += ",{0}{1}_step_{2},+".format(ds, i, cf)
 				command.extend(cdef.values())
+				command.extend(cdef2.values())
 
 			for cf in cfs:
 				command.append("CDEF:reactivePower_{0}_neg=0,reactivePower_{0},-".format(cf))
@@ -274,11 +280,11 @@ class Graph:
 				"AREA:reactivePower_AVERAGE_neg#CC00CC:Reactive Power",
 			])
 
-			if view.period_type == "Month":
-				command.append("CDEF:activePower_MIN_trend=activePower_MIN")
+			if view.period_type in ("Month", "Day"):
+				command.append("CDEF:activePower_step_MIN_trend=activePower_step_MIN")
 
 				command.extend([
-					"LINE1:activePower_MIN_trend#000000",
+					"LINE1:activePower_step_MIN_trend#000000",
 				])
 			elif view.period_type == "Hour":
 				command.extend([
