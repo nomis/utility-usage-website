@@ -1,4 +1,4 @@
-# Copyright 2011-2012,2015-2017,2021-2023  Simon Arlott
+# Copyright 2011-2012,2015-2017,2021-2023,2025  Simon Arlott
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -300,16 +300,22 @@ class Graph:
 			])
 
 			cfs = ["MIN", "AVERAGE", "MAX"]
-			for ds in ["voltage", "frequency", "temperature"]:
+			for ds in ["voltage", "frequency"]:
 				cdef = dict({(cf, "") for cf in cfs})
 				for i, rrd in enumerate(supply_rrds):
 					for cf in cfs:
 						step = ":step=86400" if view.period_type == "Month" else ""
 						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, supply_rrds[i], step))
 						if i == 0:
-							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
+							if ds == "voltage":
+								cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2},400,GE,UNKN,{0}{1}_{2},IF".format(ds, i, cf)
+							else:
+								cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
 						else:
-							cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
+							if ds == "voltage":
+								cdef[cf] += ",{0}{1}_{2},400,GE,UNKN,{0}{1}_{2},IF,+".format(ds, i, cf)
+							else:
+								cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
 					command.extend(cdef.values())
 
 			if view.period_type == "Month":
