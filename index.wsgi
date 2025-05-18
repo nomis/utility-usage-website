@@ -163,15 +163,30 @@ class Usage:
 						"compare_start": compare_start_periods, "compare_stop": compare_end_periods
 					})
 			elif config["type"] == "electricity":
+				def rescale_period(start, stop):
+					# meter_reading_usage_rescale(meters.base_id, meters.id, period.start, period.stop)
+					return (
+							f"CASE WHEN ({start} >= meters.after AND {start} < meters.before) OR ({stop} > meters.after AND {stop} <= meters.before) THEN"
+							+ " meter_reading_usage_rescale(meters.base_id, meters.id,"
+							+ f" CASE WHEN {start} >= meters.after THEN {start} ELSE meters.after END,"
+							+ f" CASE WHEN {stop} <= meters.before THEN {stop} ELSE meters.before END"
+							+ " )"
+							+ " ELSE 0 END"
+						)
+
 				c.execute("SELECT"
 					+ " period.start"
 					+ ", meters.id"
-					+ ", meter_reading_usage_rescale(meters.base_id, meters.id, period.start, period.stop) AS usage"
-					+ ", meter_reading_usage_rescale(meters.base_id, meters.id, period.compare_start, period.compare_stop) AS compare_usage"
+					+ f", {rescale_period('period.start', 'period.stop')} AS usage"
+					+ f", {rescale_period('period.compare_start', 'period.compare_stop')} AS compare_usage"
 					+ " FROM unnest(%(start)s, %(stop)s, %(compare_start)s::timestamptz[], %(compare_stop)s::timestamptz[]) AS period(start, stop, compare_start, compare_stop)"
-					+ ", unnest(%(meters)s, %(base_meters)s) AS meters(id, base_id)"
+					+ ", unnest(%(meters)s, %(base_meters)s, %(meters_before)s::timestamptz[], %(meters_after)s::timestamptz[]) AS meters(id, base_id, before, after)"
 					+ " ORDER BY period.start, meters.id",
-					{	"meters": list(config["meters"].keys()), "base_meters": [x["base"] for x in config["meters"].values()],
+					{
+						"meters": list(config["meters"].keys()),
+						"base_meters": [config["meters"][x]["base"] for x in config["meters"].keys()],
+						"meters_before": [config["meters"][x]["before"] for x in config["meters"].keys()],
+						"meters_after": [config["meters"][x]["after"] for x in config["meters"].keys()],
 						"start": start_periods, "stop": end_periods,
 						"compare_start": compare_start_periods, "compare_stop": compare_end_periods
 					})
@@ -227,11 +242,25 @@ class Graph:
 		self.view = view
 		self.data = b""
 
-		load_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",load.rrd") for meter in config["meters"].values()]
-		supply_rrds = [os.path.join(config["rrd"], meter["rrd"] + ",supply.rrd") for meter in config["meters"].values()]
+		def ts2epoch(ts):
+			return int((ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())
 
-		start = int((view.periods[0].start_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())
-		end = int((view.periods[-1].end_ts - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds())
+		start = view.periods[0].start_ts
+		end = view.periods[-1].end_ts
+
+		meters = list(filter(lambda meter: (start >= meter["after"] and start < meter["before"])
+			or (end > meter["after"] and end < meter["before"]), config["meters"].values()))
+		load_rrds = [(os.path.join(config["rrd"], meter["rrd"] + ",load.rrd"),
+				ts2epoch(start if start >= meter["after"] else meter["after"]),
+				ts2epoch(end if end <= meter["before"] else meter["before"])
+			) for meter in meters]
+		supply_rrds = [(os.path.join(config["rrd"], meter["rrd"] + ",supply.rrd"),
+				ts2epoch(start if start >= meter["after"] else meter["after"]),
+				ts2epoch(end if end <= meter["before"] else meter["before"])
+			) for meter in meters]
+
+		start = ts2epoch(start)
+		end = ts2epoch(end)
 
 		command = [
 			"-s", str(start),
@@ -248,6 +277,16 @@ class Graph:
 			"-A",
 		]
 
+		def rp_combine_cf(def_name, rrds, i):
+			if i < len(rrds):
+				this_name = "{0}{1}_{2}".format(ds, i, cf)
+				start = rrds[i][1]
+				end = rrds[i][2]
+				next_name = rp_combine_cf(this_name, rrds, i + 1)
+				return f"TIME,{start},GE,TIME,{end},LT,{this_name},{next_name},IF,{next_name},IF"
+			else:
+				return "UNKN"
+
 		if view.graph == "load":
 			command.extend([
 				"-v", "W",
@@ -255,22 +294,20 @@ class Graph:
 
 			cfs = ["MIN", "AVERAGE", "MAX"]
 			for ds in ["current", "activePower", "reactivePower", "apparentPower"]:
-				cdef = dict({(cf, "") for cf in cfs})
-				cdef2 = dict({(cf, "") for cf in cfs})
-				for i, rrd in enumerate(load_rrds):
+				cdef = dict({(cf, None) for cf in cfs})
+				cdef2 = dict({(cf, None) for cf in cfs})
+				for i, (rrd, start, end) in enumerate(load_rrds):
 					for cf in cfs:
 						step = ":step=86400" if view.period_type == "Month" else ""
-						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, load_rrds[i], step))
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, rrd, step))
 						step = 86400 if view.period_type == "Month" else 3600 * 4
-						command.append("DEF:{0}{1}_step_{2}={3}:{0}:{2}:step={4}".format(ds, i, cf, load_rrds[i], step))
-						if i == 0:
-							cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
-							cdef2[cf] = "CDEF:{0}_step_{2}={0}{1}_step_{2}".format(ds, i, cf)
-						else:
-							cdef[cf] += ",{0}{1}_step_{2},+".format(ds, i, cf)
-							cdef2[cf] += ",{0}{1}_step_{2},+".format(ds, i, cf)
-				command.extend(cdef.values())
-				command.extend(cdef2.values())
+						command.append("DEF:{0}{1}_step_{2}={3}:{0}:{2}:step={4}".format(ds, i, cf, rrd, step))
+
+				for cf in cfs:
+					cdef[cf] = "CDEF:{0}_{1}=".format(ds, cf) + rp_combine_cf("{0}{1}_{2}", load_rrds, 0)
+					cdef2[cf] = "CDEF:{0}_step_{1}=".format(ds, cf) + rp_combine_cf("{0}{1}_step_{2}", load_rrds, 0)
+				command.extend(filter(None, cdef.values()))
+				command.extend(filter(None, cdef2.values()))
 
 			for cf in cfs:
 				command.append("CDEF:reactivePower_{0}_neg=0,reactivePower_{0},-".format(cf))
@@ -301,22 +338,20 @@ class Graph:
 
 			cfs = ["MIN", "AVERAGE", "MAX"]
 			for ds in ["voltage", "frequency"]:
-				cdef = dict({(cf, "") for cf in cfs})
-				for i, rrd in enumerate(supply_rrds):
+				cdef = dict({(cf, None) for cf in cfs})
+				cdef2 = dict({(cf, None) for cf in cfs})
+				for i, (rrd, start, end) in enumerate(supply_rrds):
 					for cf in cfs:
 						step = ":step=86400" if view.period_type == "Month" else ""
-						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, supply_rrds[i], step))
-						if i == 0:
-							if ds == "voltage":
-								cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2},400,GE,UNKN,{0}{1}_{2},IF".format(ds, i, cf)
-							else:
-								cdef[cf] = "CDEF:{0}_{2}={0}{1}_{2}".format(ds, i, cf)
-						else:
-							if ds == "voltage":
-								cdef[cf] += ",{0}{1}_{2},400,GE,UNKN,{0}{1}_{2},IF,+".format(ds, i, cf)
-							else:
-								cdef[cf] += ",{0}{1}_{2},+".format(ds, i, cf)
-					command.extend(cdef.values())
+						command.append("DEF:{0}{1}_{2}={3}:{0}:{2}{4}".format(ds, i, cf, rrd, step))
+				for cf in cfs:
+					if ds == "voltage":
+						cdef[cf] = "CDEF:{0}_{1}r=".format(ds, cf) + rp_combine_cf("{0}{1}_{2}", supply_rrds, 0)
+						cdef2[cf] = "CDEF:{0}_{1}={0}_{1}r,400,GE,UNKN,{0}_{1}r,IF".format(ds, cf)
+					else:
+						cdef[cf] = "CDEF:{0}_{1}=".format(ds, cf) + rp_combine_cf("{0}{1}_{2}", supply_rrds, 0)
+				command.extend(filter(None, cdef.values()))
+				command.extend(filter(None, cdef2.values()))
 
 			if view.period_type == "Month":
 				command.append("CDEF:voltage_MIN_trend=voltage_MIN")
